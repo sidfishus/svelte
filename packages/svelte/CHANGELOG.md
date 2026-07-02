@@ -1,5 +1,13 @@
 # svelte
 
+## 5.56.5
+
+### Patch Changes
+
+- chore: drop dead code that make TSGO fail ([#18496](https://github.com/sveltejs/svelte/pull/18496))
+
+- fix: correctly transform declaration tags during SSR ([#18492](https://github.com/sveltejs/svelte/pull/18492))
+
 ## 5.56.4
 
 ### Patch Changes
