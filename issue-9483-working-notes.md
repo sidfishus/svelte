@@ -147,7 +147,7 @@ The bug is Svelte not distinguishing:
 
    For an interactive separator, those premises are wrong.
 
-4. **Root cause (hypothesis, to verify in §4):** Svelte treats `separator` as **always static / non-interactive**, with no branch for the focusable widget case. That one-size-fits-all assumption contradicts MDN and ARIA 1.1+.
+4. **Root cause (confirmed in §4):** Svelte treats `separator` as **always static / non-interactive**, with no branch for the focusable widget case. `tabpanel` has a manual exception; `separator` does not.
 
 **What we are NOT claiming:** that every `role="separator"` is interactive. Static `<hr>` without focus or keyboard handlers should still be non-interactive and should still warn if given tabindex/handlers. The fix must preserve that.
 
@@ -177,8 +177,8 @@ Each `input.svelte` has two sections:
 
 | File | Change |
 |------|--------|
-| both `input.svelte` | one separator line added in the valid section |
-| both `warnings.json` | line numbers incremented by 1 only (invalid cases shifted down one line); no new entries |
+| both `input.svelte` | two separator lines added in the valid section (static + interactive) |
+| both `warnings.json` | line numbers incremented (invalid cases shifted down); no new entries |
 
 Run:
 
@@ -188,21 +188,27 @@ pnpm test -- validator a11y-no-noninteractive-tabindex a11y-no-noninteractive-el
 
 **TDD loop:** red (now) → fix compiler → green (same command, no `warnings.json` changes needed).
 
-### 3.1 Test cases added (valid — should produce **no** warnings after fix)
+### 3.1 Test cases added (valid — should produce **no** warnings)
 
-**`a11y-no-noninteractive-tabindex/input.svelte`** (alongside existing `tabpanel` exception):
+Each file has **two** separator cases — static (regression guard) and interactive (the bug):
 
-```svelte
-<div role="separator" tabindex='0'></div>
-```
-
-**`a11y-no-noninteractive-element-interactions/input.svelte`** (keyboard handlers only — no tabindex; that's covered by the other test):
+**`a11y-no-noninteractive-tabindex/input.svelte`**
 
 ```svelte
-<div role="separator" on:keydown={() => {}}></div>
+<div role="separator"></div>              <!-- static: no tabindex — should never warn -->
+<div role="separator" tabindex='0'></div> <!-- interactive: false positive today -->
 ```
 
-`warnings.json` in each sample lists only the **invalid** cases; the separator lines are intentionally absent.
+**`a11y-no-noninteractive-element-interactions/input.svelte`**
+
+```svelte
+<div role="separator"></div>                        <!-- static: no handlers — should never warn -->
+<div role="separator" on:keydown={() => {}}></div>  <!-- interactive: false positive today -->
+```
+
+Each test isolates one rule — tabindex test has no keyboard handler; interactions test has no tabindex.
+
+`warnings.json` in each sample lists only the **invalid** cases; none of the separator lines appear there.
 
 ### 3.2 Current status — tests fail (red)
 
@@ -214,12 +220,12 @@ pnpm test -- validator a11y-no-noninteractive-tabindex a11y-no-noninteractive-el
 
 Expect: `Tests  2 failed` (plus many others passing). Each failure shows **Expected** vs **Received** — the `+` lines are extra warnings from the separator cases in the valid section.
 
-| Test | Extra warning (line in `input.svelte`) |
-|------|----------------------------------------|
-| `a11y-no-noninteractive-tabindex` | `a11y_no_noninteractive_tabindex` on line 11 — `<div role="separator" tabindex='0'>` |
-| `a11y-no-noninteractive-element-interactions` | `a11y_no_noninteractive_element_interactions` on line 9 — `<div role="separator" on:keydown={...}>` |
+| Test | Fails on (interactive case) | Passes today (static case) |
+|------|----------------------------|----------------------------|
+| `a11y-no-noninteractive-tabindex` | line 12 — `a11y_no_noninteractive_tabindex` on `<div role="separator" tabindex='0'>` | line 11 — `<div role="separator">` silent |
+| `a11y-no-noninteractive-element-interactions` | line 10 — `a11y_no_noninteractive_element_interactions` on `<div role="separator" on:keydown={...}>` | line 9 — `<div role="separator">` silent |
 
-This matches the issue report exactly. After the fix, re-run the same command — both should pass with no `warnings.json` changes.
+Invalid cases in `warnings.json` are at lines 15–18 (tabindex) and 13–17 (interactions).
 
 ### 3.3 Comparison: `tabpanel` — already passes in same file
 
@@ -229,26 +235,86 @@ This matches the issue report exactly. After the fix, re-run the same command �
 
 No warnings. Svelte already has a special case for `tabpanel` (also focusable but not a widget role in aria-query). `separator` is treated differently — that asymmetry is the bug.
 
-### 3.4 Regression guard: static `<hr>` — still warns (correct)
+### 3.4 Regression guards
 
-Not in these test files yet; verify during fix that `<hr tabindex="0">` still warns (implicit static separator).
+| Case | In test files? | Expected behaviour |
+|------|----------------|-------------------|
+| Static `<div role="separator">` (no tabindex, no handlers) | ✅ both valid sections | no warnings — passes today |
+| Static `<hr tabindex="0">` (implicit separator) | not yet | should still warn after fix |
+
+After the fix, re-run the same command — both tests green, no `warnings.json` changes.
 
 ### Checklist
 
 - [x] Add failing validator tests (TDD red phase)
+- [x] Add static separator cases (regression guard in valid sections)
 - [x] Compare with `role="tabpanel"` (known exception in same test file)
-- [ ] Confirm `<hr tabindex="0">` still warns after fix (regression guard)
+- [ ] Confirm `<hr tabindex="0">` still warns after fix
 
 ---
 
 ## 4. How Svelte classifies roles (investigation)
 
-<!-- Fill in while tracing compiler -->
+### 4.1 Trace method
 
-- [ ] Where are `a11y_no_noninteractive_tabindex` and `a11y_no_noninteractive_element_interactions` emitted?
-- [ ] How does Svelte decide an element/role is "interactive" vs "non-interactive"?
-- [ ] Why does `tabpanel` not warn but `separator` does?
-- [ ] Pitfall: `<hr>` implicit role is also `separator` — fix must not break hr checks
+1. Grep the warning code → `packages/svelte/src/compiler/phases/2-analyze/visitors/shared/a11y/index.js`
+2. Read the `if` condition that calls `w.a11y_no_noninteractive_*`
+3. Follow helpers (`is_interactive_roles`, `is_non_interactive_roles`) → `constants.js`
+4. Verify role lists with a node script from `packages/svelte/`:
+
+```bash
+node -e "
+import { non_interactive_roles, interactive_roles } from './src/compiler/phases/2-analyze/visitors/shared/a11y/constants.js';
+for (const r of ['separator', 'tabpanel']) {
+  console.log(r, { non_interactive: non_interactive_roles.includes(r), interactive: interactive_roles.includes(r) });
+}
+"
+```
+
+### 4.2 Call chain
+
+```
+compile() → 2-analyze → RegularElement.js → check_element() → a11y/index.js
+```
+
+### 4.3 Where warnings fire
+
+**`a11y_no_noninteractive_tabindex`** (index.js ~314–321) — fires when element is not interactive AND role is not in `interactive_roles`, and tabindex ≥ 0.
+
+**`a11y_no_noninteractive_element_interactions`** (index.js ~339–354) — fires when role is in `non_interactive_roles` and element has keyboard/mouse handlers.
+
+### 4.4 Role classification (`constants.js`)
+
+Roles come from `aria-query`. `non_interactive_roles` excludes roles whose `superClass` includes `widget` or `window`, **plus manual exceptions**:
+
+```js
+!['toolbar', 'tabpanel', 'generic', 'cell'].includes(name)
+```
+
+| Role | `aria-query` superClass | In `non_interactive_roles`? | In `interactive_roles`? |
+|------|-------------------------|----------------------------|------------------------|
+| `separator` | `structure` | **yes** | no |
+| `tabpanel` | `structure`, `section` | no (manual exception) | **yes** |
+
+### 4.5 Why `tabpanel` passes but `separator` fails
+
+Both are on a static `<div>`. The difference is purely role classification:
+
+- **`tabpanel`** — explicitly excluded from `non_interactive_roles` (comment: focusable tabpanels are recommended). Treated as interactive → no warnings.
+- **`separator`** — classified as non-interactive structure. Svelte has no branch for the focusable widget case → both warnings fire.
+
+**Root cause confirmed:** Svelte treats `separator` as always static/non-interactive. No equivalent of the `tabpanel` exception.
+
+### 4.6 Pitfall: `<hr>` implicit role is also `separator`
+
+Fix must not add `separator` wholesale to `interactive_roles` — that would stop warnings on `<hr tabindex="0">` (implicit static separator). Need a targeted approach (see stashed WIP: `focusable_non_widget_roles`).
+
+### Checklist
+
+- [x] Where are warnings emitted?
+- [x] How does Svelte decide interactive vs non-interactive?
+- [x] Why does `tabpanel` not warn but `separator` does?
+- [x] Pitfall: `<hr>` implicit role is also `separator`
 
 ---
 
@@ -278,4 +344,6 @@ Not in these test files yet; verify during fix that `<hr tabindex="0">` still wa
 | 2026-07-03 | Read MDN + W3C APG docs; documented why reporter markup is spec-valid (sections 1–2) |
 | 2026-07-03 | Agreed conclusion: two separator types; reporter builds interactive type; Svelte falsely assumes always static (§2.7) |
 | 2026-07-03 | Confirmed both validator tests fail (red); command in §3.2 |
-| | Stashed prior AI fix; working tree clean for iterative investigation |
+| 2026-07-03 | Added static separator regression cases; re-ran tests (2 fail, static cases pass) |
+| 2026-07-03 | Traced warnings to `a11y/index.js` + `constants.js`; root cause confirmed (§4) |
+| | Stashed prior AI fix; working tree has uncommitted test updates |
