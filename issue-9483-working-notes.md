@@ -204,14 +204,22 @@ pnpm test -- validator a11y-no-noninteractive-tabindex a11y-no-noninteractive-el
 
 `warnings.json` in each sample lists only the **invalid** cases; the separator lines are intentionally absent.
 
-### 3.2 Current test output — **fails (red)** ✅
+### 3.2 Current status — tests fail (red)
 
-| Test | Extra warnings on line 11 / 9 (separator) |
-|------|-------------------------------------------|
-| `a11y-no-noninteractive-tabindex` | `a11y_no_noninteractive_tabindex` on `<div role="separator" tabindex='0'>` |
-| `a11y-no-noninteractive-element-interactions` | `a11y_no_noninteractive_element_interactions` only (no tabindex in this case) |
+**Both tests currently fail.** Run from repo root:
 
-This matches the issue report exactly. Fix should turn both tests green without changing `warnings.json`.
+```bash
+pnpm test -- validator a11y-no-noninteractive-tabindex a11y-no-noninteractive-element-interactions
+```
+
+Expect: `Tests  2 failed` (plus many others passing). Each failure shows **Expected** vs **Received** — the `+` lines are extra warnings from the separator cases in the valid section.
+
+| Test | Extra warning (line in `input.svelte`) |
+|------|----------------------------------------|
+| `a11y-no-noninteractive-tabindex` | `a11y_no_noninteractive_tabindex` on line 11 — `<div role="separator" tabindex='0'>` |
+| `a11y-no-noninteractive-element-interactions` | `a11y_no_noninteractive_element_interactions` on line 9 — `<div role="separator" on:keydown={...}>` |
+
+This matches the issue report exactly. After the fix, re-run the same command — both should pass with no `warnings.json` changes.
 
 ### 3.3 Comparison: `tabpanel` — already passes in same file
 
@@ -269,5 +277,5 @@ Not in these test files yet; verify during fix that `<hr tabindex="0">` still wa
 |------|-------------|
 | 2026-07-03 | Read MDN + W3C APG docs; documented why reporter markup is spec-valid (sections 1–2) |
 | 2026-07-03 | Agreed conclusion: two separator types; reporter builds interactive type; Svelte falsely assumes always static (§2.7) |
-| 2026-07-03 | Reproduced via TDD (§3): added failing validator tests in valid sections; `warnings.json` line numbers only |
+| 2026-07-03 | Confirmed both validator tests fail (red); command in §3.2 |
 | | Stashed prior AI fix; working tree clean for iterative investigation |
