@@ -271,10 +271,14 @@ export const non_interactive_roles = non_abstract_roles
 		return (
 			// 'toolbar' does not descend from widget, but it does support
 			// aria-activedescendant, thus in practice we treat it as a widget.
-			// focusable tabpanel elements are recommended if any panels in a set contain content where the first element in the panel is not focusable.
+			// 'tabpanel' and 'separator' are structure roles that can also be made focusable
+			// (e.g. tabpanel with tabindex; separator as a window splitter). Excluding them from
+			// non_interactive_roles does not mean they are always interactive — only that valid
+			// focusable instances should not trigger non-interactive tabindex/interaction warnings.
+			// See tabpanel in a11y-no-noninteractive-tabindex.
 			// 'generic' is meant to have no semantic meaning.
 			// 'cell' is treated as CellRole by the AXObject which is interactive, so we treat 'cell' it as interactive as well.
-			!['toolbar', 'tabpanel', 'generic', 'cell'].includes(name) &&
+			!['toolbar', 'tabpanel', 'separator', 'generic', 'cell'].includes(name) &&
 			!role?.superClass.some((classes) => classes.includes('widget') || classes.includes('window'))
 		);
 	})
