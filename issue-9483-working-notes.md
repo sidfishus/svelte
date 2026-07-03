@@ -199,9 +199,7 @@ Adding `separator` to the interactive-capable list also changes aria-query eleme
 | `<hr on:keydown>` | warned (`a11y_no_noninteractive_element_interactions`) | **no warning** ❌ |
 | `<hr role="tab">` | warned (`a11y_no_noninteractive_element_to_interactive_role`) | **no warning** ❌ |
 
-Existing validator tests expect `<hr role="tab">` to warn. More importantly, the behaviour is **spec-wrong**: a static thematic break should not silently accept tabindex or keyboard handlers just because its implicit role shares a name with an interactive widget pattern.
-
-**Verdict:** One-line fix, unacceptable regression on `<hr>`.
+**Verdict:** We can't mark `separator` as globally interactive because `<hr>` is always a `separator`, and `<hr>` must stay non-interactive — so the simple fix creates false negatives on real mistakes.
 
 ---
 
