@@ -6,6 +6,7 @@
 <dialog on:click={() => {}}>alert</dialog>
 <h1 contenteditable="true" on:keydown={() => {}}>Heading</h1>
 <h1>Heading</h1>
+<div role="separator" on:keydown={() => {}}></div>
 
 <!-- INVALID -->
 <div role="listitem" on:mousedown={() => {}}></div>
