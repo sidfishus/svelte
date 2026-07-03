@@ -7,7 +7,7 @@
 <h1 contenteditable="true" on:keydown={() => {}}>Heading</h1>
 <h1>Heading</h1>
 <div role="separator"></div>
-<div role="separator" on:keydown={() => {}}></div>
+<div role="separator" tabindex="0" on:keydown={() => {}}></div>
 
 <!-- INVALID -->
 <div role="listitem" on:mousedown={() => {}}></div>

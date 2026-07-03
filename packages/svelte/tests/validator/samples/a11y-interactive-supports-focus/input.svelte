@@ -29,4 +29,5 @@
 <div role="button" on:mouseout={() => {}}></div>
 <span role="menuitem" on:mouseover={() => {}}></span>
 <div role="button" on:mouseup={() => {}}></div>
+<div role="separator" on:keydown={() => {}}></div>
 

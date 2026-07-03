@@ -274,5 +274,17 @@
 			"column": 0,
 			"line": 31
 		}
+	},
+	{
+		"code": "a11y_interactive_supports_focus",
+		"end": {
+			"column": 50,
+			"line": 32
+		},
+		"message": "Elements with the 'separator' interactive role must have a tabindex value",
+		"start": {
+			"column": 0,
+			"line": 32
+		}
 	}
 ]

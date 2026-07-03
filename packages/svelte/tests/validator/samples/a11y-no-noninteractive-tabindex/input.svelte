@@ -8,8 +8,6 @@
 <div role='article' tabindex='-1'></div>
 <article tabindex='-1'></article>
 <div role="tabpanel" tabindex='0'></div>
-<div role="separator"></div>
-<div role="separator" tabindex='0'></div>
 <svelte:element this={Math.random() ? 'button' : 'div'} tabindex="0" />
 <!-- invalid -->
 <div tabindex='0'></div>
